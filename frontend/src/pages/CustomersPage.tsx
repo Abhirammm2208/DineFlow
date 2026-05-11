@@ -327,7 +327,7 @@ export function CustomersPage() {
                 </Button>
                 <Button
                   onClick={newCustomer}
-                  loading={creatingCustomer}
+                  isLoading={creatingCustomer}
                 >
                   Add Customer
                 </Button>
