@@ -1,0 +1,79 @@
+/* DineFlow — design tokens aligned to provided SaaS mockups */
+:root {
+  --df-bg: #f4f6f8;
+  --df-surface: #ffffff;
+  --df-border: #e8ecf0;
+  --df-mint: #5eead4;
+  --df-mint-soft: #ccfbf1;
+  --df-mint-text: #115e59;
+  --df-ink: #0f172a;
+  --df-muted: #64748b;
+  --df-search: #f1f5f9;
+  --df-green: #2d6a4f;
+  --df-green-dark: #1b4332;
+  --df-live: #22c55e;
+  --df-radius-lg: 14px;
+  --df-radius-xl: 18px;
+  --df-shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.06);
+}
+
+.df-page-bg {
+  background-color: var(--df-bg);
+}
+
+.df-card {
+  background: var(--df-surface);
+  border: 1px solid var(--df-border);
+  border-radius: var(--df-radius-xl);
+  box-shadow: var(--df-shadow-card);
+}
+
+.df-nav-active {
+  background-color: var(--df-mint-soft);
+  color: var(--df-mint-text);
+  font-weight: 600;
+}
+
+.df-pill-live {
+  background: #ecfdf5;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.df-punch {
+  background: linear-gradient(180deg, #2d6a4f 0%, #1b4332 100%);
+  color: #fff;
+}
+
+.df-punch:hover {
+  filter: brightness(1.05);
+}
+
+.df-search-global {
+  background: var(--df-search);
+  border-radius: 9999px;
+}
+
+/* Image utilities for centered alignment */
+.img-menu-item {
+  width: 100%;
+  height: 8rem; /* 32 * 0.25rem */
+  object-fit: cover;
+  object-position: center;
+  border-radius: 0.5rem;
+}
+
+.img-campaign {
+  width: 100%;
+  height: 10rem; /* 40 * 0.25rem */
+  object-fit: cover;
+  object-position: center;
+  border-radius: 1rem;
+}
+
+.img-customer-avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
