@@ -135,19 +135,75 @@ router.get('/top-customers', authMiddleware, async (req: Request, res: Response)
 router.get('/at-risk', authMiddleware, async (req: Request, res: Response) => {
   try {
     const merchantId = req.merchantId!;
-    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
+    // Fetch customers who have visited at least once and have a last_visit_at
     const { data: customers, error } = await supabase
       .from('customers')
       .select('id,name,phone,email,telegram_chat_id,last_visit_at,total_visits')
       .eq('merchant_id', merchantId)
       .gte('total_visits', 1)
-      .lte('last_visit_at', cutoff)
+      .not('last_visit_at', 'is', null)
       .order('last_visit_at', { ascending: true })
-      .limit(100);
+      .limit(200);
 
     if (error) return res.status(400).json({ error: error.message });
-    res.json({ customers: customers || [], count: (customers || []).length });
+
+    const now = Date.now();
+    const MS_PER_DAY = 86400000;
+    const FALLBACK_DAYS = 14; // fallback for customers with only 1 visit
+
+    // For customers with 2+ visits, fetch their last 5 completed_at timestamps to compute avg gap
+    const atRisk: any[] = [];
+
+    for (const c of customers || []) {
+      const lastVisitMs = c.last_visit_at ? new Date(c.last_visit_at).getTime() : 0;
+      const daysSinceLast = (now - lastVisitMs) / MS_PER_DAY;
+
+      if (c.total_visits >= 2) {
+        // Fetch last 6 bills to compute up to 5 gaps
+        const { data: bills } = await supabase
+          .from('bills')
+          .select('completed_at')
+          .eq('merchant_id', merchantId)
+          .eq('customer_id', c.id)
+          .eq('status', 'completed')
+          .order('completed_at', { ascending: false })
+          .limit(6);
+
+        const dates = (bills || [])
+          .map((b: any) => new Date(b.completed_at).getTime())
+          .filter((t: number) => !isNaN(t))
+          .sort((a: number, b: number) => b - a);
+
+        if (dates.length >= 2) {
+          const gaps: number[] = [];
+          for (let i = 0; i < dates.length - 1; i++) {
+            gaps.push((dates[i] - dates[i + 1]) / MS_PER_DAY);
+          }
+          const avgGap = gaps.reduce((s, g) => s + g, 0) / gaps.length;
+          const threshold = avgGap * 1.5;
+
+          if (daysSinceLast > threshold) {
+            atRisk.push({ ...c, avg_visit_gap_days: Math.round(avgGap), days_since_last_visit: Math.round(daysSinceLast), threshold: Math.round(threshold) });
+          }
+        } else {
+          // Not enough bill data, fall back to 14 days
+          if (daysSinceLast > FALLBACK_DAYS) {
+            atRisk.push({ ...c, avg_visit_gap_days: null, days_since_last_visit: Math.round(daysSinceLast), threshold: FALLBACK_DAYS });
+          }
+        }
+      } else {
+        // Only 1 visit — use fallback threshold
+        if (daysSinceLast > FALLBACK_DAYS) {
+          atRisk.push({ ...c, avg_visit_gap_days: null, days_since_last_visit: Math.round(daysSinceLast), threshold: FALLBACK_DAYS });
+        }
+      }
+    }
+
+    // Sort by most overdue first
+    atRisk.sort((a, b) => b.days_since_last_visit - a.days_since_last_visit);
+
+    res.json({ customers: atRisk, count: atRisk.length });
   } catch {
     res.status(500).json({ error: 'Internal server error' });
   }
