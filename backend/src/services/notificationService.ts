@@ -1,4 +1,4 @@
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 import https from 'https';
 
 type CampaignBrief = {
@@ -6,19 +6,10 @@ type CampaignBrief = {
   description?: string | null;
 };
 
-function getTransporter() {
-  const smtpHost = process.env.SMTP_HOST;
-  const smtpPort = Number(process.env.SMTP_PORT || 587);
-  const smtpSecure = String(process.env.SMTP_SECURE || '').toLowerCase() === 'true' || smtpPort === 465;
-  const smtpUser = process.env.SMTP_USER;
-  const smtpPass = process.env.SMTP_PASS;
-  if (!smtpHost || !smtpUser || !smtpPass) return null;
-  return nodemailer.createTransport({
-    host: smtpHost,
-    port: smtpPort,
-    secure: smtpSecure,
-    auth: { user: smtpUser, pass: smtpPass },
-  });
+function getResend() {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return null;
+  return new Resend(apiKey);
 }
 
 function escapeHtml(input: string | null | undefined) {
@@ -126,24 +117,27 @@ export async function sendEmailNotification(
 
   const { subject, text, html } = buildEmailContent(customerName, billAmount, merchantName, campaigns, pointsBalance);
 
-  const transporter = getTransporter();
-  const smtpFromEmail = process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER;
-  const smtpFromName = process.env.SMTP_FROM_NAME || 'DineFlow Billing';
+  const resend = getResend();
+  const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
+  const fromName = process.env.SMTP_FROM_NAME || 'DineFlow Billing';
 
-  if (!transporter || !smtpFromEmail) {
-    console.log('SMTP not configured. Email would be sent to:', toEmail);
-    console.log(`Email to ${toEmail}: ${subject}\n${text}`);
+  if (!resend) {
+    console.log('[Email] RESEND_API_KEY not configured. Skipping email to:', toEmail);
     return false;
   }
 
   try {
-    await transporter.sendMail({
-      from: `${smtpFromName} <${smtpFromEmail}>`,
+    const { error } = await resend.emails.send({
+      from: `${fromName} <${fromEmail}>`,
       to: toEmail,
       subject,
-      text,
       html,
+      text,
     });
+    if (error) {
+      console.error('Failed to send email:', error);
+      return false;
+    }
     console.log(`Email sent successfully to ${toEmail}`);
     return true;
   } catch (error) {
@@ -350,17 +344,18 @@ export async function sendCampaignEmail(
     </div>
   `;
 
-  const transporter = getTransporter();
-  const smtpFromEmail = process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER;
-  const smtpFromName = process.env.SMTP_FROM_NAME || 'DineFlow Billing';
+  const resend = getResend();
+  const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
+  const fromName = process.env.SMTP_FROM_NAME || 'DineFlow Billing';
 
-  if (!transporter || !smtpFromEmail) {
-    console.log(`[Campaign Email] SMTP not configured. Would send to ${toEmail}: ${subject}`);
+  if (!resend) {
+    console.log(`[Campaign Email] RESEND_API_KEY not configured. Skipping email to ${toEmail}`);
     return false;
   }
 
   try {
-    await transporter.sendMail({ from: `${smtpFromName} <${smtpFromEmail}>`, to: toEmail, subject, text, html });
+    const { error } = await resend.emails.send({ from: `${fromName} <${fromEmail}>`, to: toEmail, subject, text, html });
+    if (error) { console.error('[Campaign Email] Failed:', error); return false; }
     console.log(`[Campaign Email] Sent to ${toEmail}`);
     return true;
   } catch (err) {
