@@ -1,4 +1,4 @@
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 import https from 'https';
 
 type CampaignBrief = {
@@ -6,14 +6,10 @@ type CampaignBrief = {
   description?: string | null;
 };
 
-function getTransporter() {
-  const host = process.env.SMTP_HOST;
-  const port = Number(process.env.SMTP_PORT || 465);
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-  if (!host || !user || !pass) return null;
-  const secure = port === 465 || String(process.env.SMTP_SECURE || '').toLowerCase() === 'true';
-  return nodemailer.createTransport({ host, port, secure, auth: { user, pass } });
+function getResend() {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return null;
+  return new Resend(apiKey);
 }
 
 function escapeHtml(input: string | null | undefined) {
@@ -51,7 +47,7 @@ function buildEmailContent(
   const safeCampaigns = campaigns.filter((c) => c.title != null);
   const amountText = billAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const campaignText = formatCampaigns(safeCampaigns);
-  const subject = `Thanks for dining at ${safeMerchantName} — you have ${pointsBalance} reward points!`;
+  const subject = `Your bill receipt from ${safeMerchantName}`;
 
   const pointsLine = pointsBalance > 0
     ? `You currently have ${pointsBalance} reward points waiting for you. Use them on your next visit for exclusive savings!`
@@ -121,17 +117,18 @@ export async function sendEmailNotification(
 
   const { subject, text, html } = buildEmailContent(customerName, billAmount, merchantName, campaigns, pointsBalance);
 
-  const transporter = getTransporter();
-  const fromEmail = process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER;
+  const resend = getResend();
+  const fromEmail = process.env.RESEND_FROM_EMAIL || 'noreply@abhiram.codes';
   const fromName = process.env.SMTP_FROM_NAME || 'DineFlow Billing';
 
-  if (!transporter || !fromEmail) {
-    console.log('[Email] SMTP not configured. Skipping email to:', toEmail);
+  if (!resend) {
+    console.log('[Email] RESEND_API_KEY not configured. Skipping email to:', toEmail);
     return false;
   }
 
   try {
-    await transporter.sendMail({ from: `${fromName} <${fromEmail}>`, to: toEmail, subject, html, text });
+    const { error } = await resend.emails.send({ from: `${fromName} <${fromEmail}>`, to: toEmail, subject, html, text });
+    if (error) { console.error('Failed to send email:', error); return false; }
     console.log(`Email sent successfully to ${toEmail}`);
     return true;
   } catch (error) {
@@ -308,7 +305,7 @@ export async function sendCampaignEmail(
 
   const safeName = customerName || 'there';
   const safeMerchant = merchantName || 'Restaurant';
-  const subject = `${safeMerchant} has a special offer for you!`;
+  const subject = `A message from ${safeMerchant}`;
 
   const text = [
     `Hey ${safeName}!`,
@@ -338,17 +335,18 @@ export async function sendCampaignEmail(
     </div>
   `;
 
-  const transporter = getTransporter();
-  const fromEmail = process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER;
+  const resend = getResend();
+  const fromEmail = process.env.RESEND_FROM_EMAIL || 'noreply@abhiram.codes';
   const fromName = process.env.SMTP_FROM_NAME || 'DineFlow Billing';
 
-  if (!transporter || !fromEmail) {
-    console.log(`[Campaign Email] SMTP not configured. Skipping email to ${toEmail}`);
+  if (!resend) {
+    console.log(`[Campaign Email] RESEND_API_KEY not configured. Skipping email to ${toEmail}`);
     return false;
   }
 
   try {
-    await transporter.sendMail({ from: `${fromName} <${fromEmail}>`, to: toEmail, subject, text, html });
+    const { error } = await resend.emails.send({ from: `${fromName} <${fromEmail}>`, to: toEmail, subject, text, html });
+    if (error) { console.error('[Campaign Email] Failed:', error); return false; }
     console.log(`[Campaign Email] Sent to ${toEmail}`);
     return true;
   } catch (err) {
