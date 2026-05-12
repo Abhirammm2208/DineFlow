@@ -279,7 +279,8 @@ router.post('/:id/punch', authMiddleware, async (req: Request, res: Response) =>
           .order('created_at', { ascending: false })
           .limit(4);
 
-        const notificationResult = await sendNotification(
+        // Fire notification without blocking the response
+        sendNotification(
           c.email,
           c.name,
           Number(bill.total_amount),
@@ -287,14 +288,14 @@ router.post('/:id/punch', authMiddleware, async (req: Request, res: Response) =>
           activeCampaigns || [],
           c.telegram_chat_id ?? null,
           newPoints
-        );
+        ).catch((err) => console.error('[Bills] notification error:', err));
 
         return res.json({
           bill: finalBill,
           customer: { ...c, points_balance: newPoints },
           pointsEarned,
           newPointsBalance: newPoints,
-          notification: notificationResult,
+          notification: { queued: true },
         });
       }
     }

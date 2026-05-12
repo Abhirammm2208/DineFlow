@@ -6,27 +6,20 @@ type CampaignBrief = {
   description?: string | null;
 };
 
-const smtpHost = process.env.SMTP_HOST;
-const smtpPort = Number(process.env.SMTP_PORT || 587);
-const smtpSecure = String(process.env.SMTP_SECURE || '').toLowerCase() === 'true' || smtpPort === 465;
-const smtpUser = process.env.SMTP_USER;
-const smtpPass = process.env.SMTP_PASS;
-const smtpFromEmail = process.env.SMTP_FROM_EMAIL || smtpUser;
-const smtpFromName = process.env.SMTP_FROM_NAME || 'DineFlow Billing';
-
-const smtpConfigured = Boolean(smtpHost && smtpUser && smtpPass && smtpFromEmail);
-
-const transporter = smtpConfigured
-  ? nodemailer.createTransport({
-      host: smtpHost,
-      port: smtpPort,
-      secure: smtpSecure,
-      auth: {
-        user: smtpUser,
-        pass: smtpPass,
-      },
-    })
-  : null;
+function getTransporter() {
+  const smtpHost = process.env.SMTP_HOST;
+  const smtpPort = Number(process.env.SMTP_PORT || 587);
+  const smtpSecure = String(process.env.SMTP_SECURE || '').toLowerCase() === 'true' || smtpPort === 465;
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+  if (!smtpHost || !smtpUser || !smtpPass) return null;
+  return nodemailer.createTransport({
+    host: smtpHost,
+    port: smtpPort,
+    secure: smtpSecure,
+    auth: { user: smtpUser, pass: smtpPass },
+  });
+}
 
 function escapeHtml(input: string | null | undefined) {
   if (input == null) return '';
@@ -133,10 +126,14 @@ export async function sendEmailNotification(
 
   const { subject, text, html } = buildEmailContent(customerName, billAmount, merchantName, campaigns, pointsBalance);
 
+  const transporter = getTransporter();
+  const smtpFromEmail = process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER;
+  const smtpFromName = process.env.SMTP_FROM_NAME || 'DineFlow Billing';
+
   if (!transporter || !smtpFromEmail) {
     console.log('SMTP not configured. Email would be sent to:', toEmail);
     console.log(`Email to ${toEmail}: ${subject}\n${text}`);
-    return true;
+    return false;
   }
 
   try {
@@ -353,9 +350,13 @@ export async function sendCampaignEmail(
     </div>
   `;
 
+  const transporter = getTransporter();
+  const smtpFromEmail = process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER;
+  const smtpFromName = process.env.SMTP_FROM_NAME || 'DineFlow Billing';
+
   if (!transporter || !smtpFromEmail) {
-    console.log(`[Campaign Email] Would send to ${toEmail}: ${subject}`);
-    return true;
+    console.log(`[Campaign Email] SMTP not configured. Would send to ${toEmail}: ${subject}`);
+    return false;
   }
 
   try {
