@@ -39,3 +39,6 @@ Thumbs.db
 # Environment files
 .env
 .env.*
+
+# Private docs
+INTERVIEW_DOC.md
