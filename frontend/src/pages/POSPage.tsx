@@ -62,6 +62,9 @@ export function POSPage() {
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
   const [showRecentOrders, setShowRecentOrders] = useState(false);
   const [showNewCustModal, setShowNewCustModal] = useState(false);
+  const [showDiscountModal, setShowDiscountModal] = useState(false);
+  const [discountPct, setDiscountPct] = useState(0);
+  const [pointsToRedeem, setPointsToRedeem] = useState(0);
   const [newCustName, setNewCustName] = useState('');
   const [newCustPhone, setNewCustPhone] = useState('');
   const [newCustEmail, setNewCustEmail] = useState('');
@@ -72,8 +75,16 @@ export function POSPage() {
   const headerSearchRef = useRef<HTMLInputElement>(null);
 
   const taxAmount = useMemo(() => getTaxAmount(subtotal, taxRate), [subtotal, taxRate]);
-  const grandTotal = useMemo(() => Math.round((subtotal + taxAmount) * 100) / 100, [subtotal, taxAmount]);
+  const preDiscountTotal = useMemo(() => Math.round((subtotal + taxAmount) * 100) / 100, [subtotal, taxAmount]);
+  const discountAmount = useMemo(() => Math.round(preDiscountTotal * discountPct) / 100, [preDiscountTotal, discountPct]);
+  const grandTotal = useMemo(() => Math.round((preDiscountTotal - discountAmount) * 100) / 100, [preDiscountTotal, discountAmount]);
   const estimatedPoints = useMemo(() => Math.floor(grandTotal * (pointsRate / 100)), [grandTotal, pointsRate]);
+
+  // Max discount % based on customer points: 100 pts = 1%, capped at 10% (1000 pts)
+  const maxDiscountPct = useMemo(() => {
+    const pts = selectedCustomer?.points_balance ?? 0;
+    return Math.min(Math.floor(pts / 100), 10);
+  }, [selectedCustomer]);
 
   useEffect(() => {
     if (currentBillItems.length === 0) {
@@ -228,6 +239,30 @@ export function POSPage() {
     }
   };
 
+  const openDiscountModal = () => {
+    if (!selectedCustomer) {
+      setError('Select a customer first to apply points discount');
+      return;
+    }
+    if (maxDiscountPct <= 0) {
+      setError('Customer needs at least 100 points to get a discount');
+      return;
+    }
+    setShowDiscountModal(true);
+  };
+
+  const applyDiscount = (pct: number) => {
+    const pts = pct * 100;
+    setDiscountPct(pct);
+    setPointsToRedeem(pts);
+    setShowDiscountModal(false);
+  };
+
+  const removeDiscount = () => {
+    setDiscountPct(0);
+    setPointsToRedeem(0);
+  };
+
   const punch = async () => {
     if (currentBillItems.length === 0) {
       setError('Cart is empty');
@@ -251,6 +286,8 @@ export function POSPage() {
       const punchRes = await api.punchBill(bill.id, {
         payment_method: 'Visa',
         payment_last_four: '4242',
+        points_redeemed: pointsToRedeem,
+        discount_amount: discountAmount,
       });
       const pdata = punchRes.data;
       setLastCheckout({
@@ -267,6 +304,8 @@ export function POSPage() {
       clearBill();
       setPhoneSearch('');
       setDisplayOrder('');
+      setDiscountPct(0);
+      setPointsToRedeem(0);
       navigate('/pos/success');
     } catch (e: any) {
       setError(e.response?.data?.error || 'Could not complete order');
@@ -475,6 +514,12 @@ export function POSPage() {
           <span>Tax ({(taxRate * 100).toFixed(1)}%)</span>
           <span className="font-medium">${taxAmount.toFixed(2)}</span>
         </div>
+        {discountPct > 0 && (
+          <div className="flex justify-between text-[13px] text-emerald-700">
+            <span>Discount ({discountPct}% · {pointsToRedeem} pts)</span>
+            <span className="font-medium">-${discountAmount.toFixed(2)}</span>
+          </div>
+        )}
         <div className="flex justify-between text-[18px] font-bold text-slate-900 pt-1">
           <span>Total</span>
           <span>${grandTotal.toFixed(2)}</span>
@@ -483,12 +528,23 @@ export function POSPage() {
           +{estimatedPoints} pts earned on punch ({pointsRate}% of bill)
         </div>
         <div className="flex gap-2">
-          <button
-            type="button"
-            className="flex-1 py-2.5 rounded-[10px] border border-slate-200 bg-white text-[11px] font-bold text-slate-600 flex items-center justify-center gap-1"
-          >
-            <FiPercent size={14} /> % Discount
-          </button>
+          {discountPct > 0 ? (
+            <button
+              type="button"
+              onClick={removeDiscount}
+              className="flex-1 py-2.5 rounded-[10px] border border-emerald-200 bg-emerald-50 text-[11px] font-bold text-emerald-700 flex items-center justify-center gap-1"
+            >
+              <FiPercent size={14} /> {discountPct}% Applied ✕
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={openDiscountModal}
+              className="flex-1 py-2.5 rounded-[10px] border border-slate-200 bg-white text-[11px] font-bold text-slate-600 flex items-center justify-center gap-1 hover:bg-slate-50"
+            >
+              <FiPercent size={14} /> % Discount
+            </button>
+          )}
           <button
             type="button"
             className="flex-1 py-2.5 rounded-[10px] border border-slate-200 bg-white text-[11px] font-bold text-slate-600 flex items-center justify-center gap-1"
@@ -572,6 +628,40 @@ export function POSPage() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+      {/* Discount Modal */}
+      {showDiscountModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 shadow-xl">
+            <h2 className="text-lg font-bold text-slate-900 mb-2">Redeem Points for Discount</h2>
+            <p className="text-[13px] text-slate-500 mb-4">
+              {selectedCustomer?.name} has <b className="text-emerald-700">{selectedCustomer?.points_balance ?? 0} points</b>.
+              <br />100 points = 1% discount, max 10% (1000 pts).
+            </p>
+            <div className="grid grid-cols-5 gap-2 mb-4">
+              {Array.from({ length: maxDiscountPct }, (_, i) => i + 1).map((pct) => (
+                <button
+                  key={pct}
+                  type="button"
+                  onClick={() => applyDiscount(pct)}
+                  className="py-3 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 text-[13px] font-bold hover:bg-emerald-100 transition"
+                >
+                  {pct}%
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2 mb-4">
+              Points exceeding 1000 without redemption will expire. Use them before they're gone!
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowDiscountModal(false)}
+              className="w-full py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}

@@ -145,7 +145,7 @@ export const api = {
     return apiClient.patch(`/bills/${id}/hold`, { held });
   },
 
-  punchBill: async (id: string, payment?: { payment_method?: string; payment_last_four?: string }) => {
+  punchBill: async (id: string, payment?: { payment_method?: string; payment_last_four?: string; points_redeemed?: number; discount_amount?: number }) => {
     return apiClient.post(`/bills/${id}/punch`, payment || {});
   },
 
