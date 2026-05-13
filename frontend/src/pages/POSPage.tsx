@@ -542,7 +542,7 @@ export function POSPage() {
               onClick={openDiscountModal}
               className="flex-1 py-2.5 rounded-[10px] border border-slate-200 bg-white text-[11px] font-bold text-slate-600 flex items-center justify-center gap-1 hover:bg-slate-50"
             >
-              <FiPercent size={14} /> % Discount
+              <FiPercent size={14} /> Discount
             </button>
           )}
           <button
