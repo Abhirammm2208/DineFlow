@@ -377,3 +377,65 @@ export async function sendNotification(
   ]);
   return { email, telegram };
 }
+
+// ─── Points Expiry Warning ───────────────────────────────────────────────────
+
+export async function sendPointsExpiryWarning(
+  toEmail: string | null | undefined,
+  telegramChatId: string | null | undefined,
+  customerName: string | null | undefined,
+  merchantName: string | null | undefined,
+  currentPoints: number
+): Promise<void> {
+  const safeName = customerName || 'there';
+  const safeMerchant = merchantName || 'Restaurant';
+  const discountPct = Math.min(Math.floor(currentPoints / 100), 10);
+
+  // Email
+  if (toEmail?.trim()) {
+    const resend = getResend();
+    const fromEmail = process.env.RESEND_FROM_EMAIL || 'noreply@abhiram.codes';
+    const fromName = process.env.SMTP_FROM_NAME || 'DineFlow Billing';
+
+    if (resend) {
+      const subject = `Your ${currentPoints} reward points are about to expire!`;
+      const html = `
+        <div style="max-width:520px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;padding:32px 24px;background:#ffffff;border-radius:16px;border:1px solid #e2e8f0;">
+          <p style="margin:0 0 16px;font-size:15px;">Hey <strong>${escapeHtml(safeName)}</strong>! 👋</p>
+          <p style="margin:0 0 16px;font-size:15px;">Your <strong>${currentPoints} reward points</strong> at <strong>${escapeHtml(safeMerchant)}</strong> are about to expire!</p>
+          <div style="margin:0 0 20px;padding:18px 20px;border-radius:14px;background:#fef3c7;border:1px solid #fde68a;">
+            <p style="margin:0;font-size:16px;font-weight:700;color:#92400e;">⚠️ You're eligible for a ${discountPct}% discount right now!</p>
+            <p style="margin:8px 0 0;font-size:14px;color:#78350f;">Once you cross 1000 points without redeeming, your points will reset. Don't miss out!</p>
+          </div>
+          <p style="margin:0 0 8px;font-size:15px;">Hurry up — we can't wait to see you! Come grab your discount before it's gone. 🔥</p>
+          <p style="margin:20px 0 0;font-size:11px;color:#9ca3af;">Powered by DineFlow</p>
+        </div>
+      `;
+      const text = `Hey ${safeName}! Your ${currentPoints} reward points at ${safeMerchant} are about to expire! You're eligible for a ${discountPct}% discount right now. Once you cross 1000 points without redeeming, your points will reset. Hurry up — come grab your discount before it's gone!`;
+
+      resend.emails.send({ from: `${fromName} <${fromEmail}>`, to: toEmail.trim(), subject, html, text })
+        .then(() => console.log(`[Points Expiry] Email sent to ${toEmail}`))
+        .catch((err: any) => console.error('[Points Expiry] Email failed:', err));
+    }
+  }
+
+  // Telegram
+  if (telegramChatId?.trim() && telegramConfigured && telegramBotToken) {
+    const message = [
+      `⚠️ *Points Expiry Alert!*`,
+      ``,
+      `Hey *${safeName}*! 👋`,
+      ``,
+      `You have *${currentPoints} reward points* at *${safeMerchant}* — that's a *${discountPct}% discount* waiting for you!`,
+      ``,
+      `Once your points cross 1000 without redeeming, they'll expire and reset. Don't let that happen!`,
+      ``,
+      `Hurry up — we can't wait to see you! Come grab your discount before it's gone 🔥`,
+      ``,
+      `_Powered by DineFlow_`,
+    ].join('\n');
+
+    telegramPost(telegramBotToken, telegramChatId.trim(), message)
+      .catch((err) => console.error('[Points Expiry] Telegram failed:', err));
+  }
+}

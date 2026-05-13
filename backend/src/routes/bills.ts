@@ -178,7 +178,7 @@ router.post('/:id/punch', authMiddleware, async (req: Request, res: Response) =>
   try {
     const merchantId = req.merchantId;
     const { id } = req.params;
-    const { payment_method, payment_last_four } = req.body || {};
+    const { payment_method, payment_last_four, points_redeemed, discount_amount } = req.body || {};
 
     const { data: bill, error: billError } = await supabase
       .from('bills')
@@ -256,7 +256,22 @@ router.post('/:id/punch', authMiddleware, async (req: Request, res: Response) =>
 
       if (!custErr && customerRow) {
         const c: any = customerRow;
-        const newPoints = (c.points_balance || 0) + pointsEarned;
+        const currentPoints = c.points_balance || 0;
+
+        // Deduct redeemed points (if discount was applied)
+        const redeemed = Number(points_redeemed) || 0;
+        const afterRedemption = Math.max(0, currentPoints - redeemed);
+
+        // Add newly earned points
+        let newPoints = afterRedemption + pointsEarned;
+
+        // Points expiry: if balance exceeds 1000, remove the first 1000 block
+        let pointsExpired = 0;
+        if (newPoints > 1000) {
+          pointsExpired = 1000;
+          newPoints = newPoints - 1000;
+          console.log(`[Points] Customer ${c.name} exceeded 1000 pts — expired 1000. New balance: ${newPoints}`);
+        }
 
         const custPatch: Record<string, unknown> = {
           total_visits: (c.total_visits || 0) + 1,
@@ -279,21 +294,37 @@ router.post('/:id/punch', authMiddleware, async (req: Request, res: Response) =>
           .order('created_at', { ascending: false })
           .limit(4);
 
-        // Fire notification without blocking the response
+        const merchantNameStr = (bill as any).merchants?.name || 'Restaurant';
+
+        // Fire bill notification without blocking the response
         sendNotification(
           c.email,
           c.name,
           Number(bill.total_amount),
-          (bill as any).merchants?.name || 'Restaurant',
+          merchantNameStr,
           activeCampaigns || [],
           c.telegram_chat_id ?? null,
           newPoints
         ).catch((err) => console.error('[Bills] notification error:', err));
 
+        // Points expiry warning: if new balance is between 900 and 1000, notify customer
+        if (newPoints >= 900 && newPoints <= 1000) {
+          const { sendPointsExpiryWarning } = await import('../services/notificationService.js');
+          sendPointsExpiryWarning(
+            c.email,
+            c.telegram_chat_id ?? null,
+            c.name,
+            merchantNameStr,
+            newPoints
+          ).catch((err: any) => console.error('[Bills] expiry warning error:', err));
+        }
+
         return res.json({
           bill: finalBill,
           customer: { ...c, points_balance: newPoints },
           pointsEarned,
+          pointsRedeemed: redeemed,
+          pointsExpired,
           newPointsBalance: newPoints,
           notification: { queued: true },
         });
