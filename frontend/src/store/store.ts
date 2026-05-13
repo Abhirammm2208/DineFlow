@@ -63,6 +63,7 @@ interface StoreState {
   error: string | null;
 
   setToken: (token: string, merchantId: string, merchantName: string) => void;
+  setMerchantName: (name: string) => void;
   clearAuth: () => void;
   addBillItem: (item: MenuItem, modifiers?: string[]) => void;
   removeBillItem: (menuItemId: string) => void;
@@ -102,6 +103,11 @@ export const useStore = create<StoreState>((set) => ({
     localStorage.setItem('merchantId', merchantId);
     localStorage.setItem('merchantName', merchantName);
     set({ token, merchantId, merchantName });
+  },
+
+  setMerchantName: (name: string) => {
+    localStorage.setItem('merchantName', name);
+    set({ merchantName: name });
   },
 
   clearAuth: () => {

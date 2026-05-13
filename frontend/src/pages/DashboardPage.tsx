@@ -12,6 +12,7 @@ import {
   FiAlertTriangle,
   FiSend,
   FiAward,
+  FiX,
 } from 'react-icons/fi';
 
 type DashStats = {
@@ -55,6 +56,9 @@ export function DashboardPage() {
   const [winBackSending, setWinBackSending] = useState(false);
   const [winBackDone, setWinBackDone] = useState(false);
   const [leaderTab, setLeaderTab] = useState<'visits' | 'spend'>('visits');
+  const [showWinBackModal, setShowWinBackModal] = useState(false);
+  const [winBackSubject, setWinBackSubject] = useState('We Miss You! Come Back for a Special Treat');
+  const [winBackBody, setWinBackBody] = useState('Hey! It\'s been a while since your last visit. We\'ve been saving your table — come back and enjoy a welcome-back treat exclusively for you. Can\'t wait to see you again!');
 
   const demoStats: DashStats = {
     todayRevenue: 2480.5,
@@ -104,15 +108,18 @@ export function DashboardPage() {
     } catch { alert('Export failed'); }
   };
 
+  const openWinBackModal = () => setShowWinBackModal(true);
+
   const sendWinBack = async () => {
-    if (!window.confirm(`Send a win-back message to all ${atRisk.length} at-risk customers now?`)) return;
+    if (!winBackSubject.trim() || !winBackBody.trim()) return;
     setWinBackSending(true);
     try {
-      await api.createCampaign('We Miss You! 🍽️', 'Come back and enjoy a special welcome-back treat — exclusively for you. We\'ve been saving your table!', 'active', undefined, 'at_risk');
+      await api.createCampaign(winBackSubject.trim(), winBackBody.trim(), 'active', undefined, 'at_risk');
       const campaigns = await api.getCampaigns();
-      const camp = (campaigns.data.campaigns || []).find((c: any) => c.title === 'We Miss You! 🍽️' && !c.sent_at);
+      const camp = (campaigns.data.campaigns || []).find((c: any) => c.title === winBackSubject.trim() && !c.sent_at);
       if (camp?.id) await api.broadcastCampaign(camp.id);
       setWinBackDone(true);
+      setShowWinBackModal(false);
     } catch { alert('Win-back send failed'); }
     finally { setWinBackSending(false); }
   };
@@ -155,7 +162,7 @@ export function DashboardPage() {
             <FiAlertTriangle className="text-amber-500 text-xl mt-0.5 shrink-0" />
             <div>
               <p className="font-semibold text-amber-900 text-[14px]">
-                {atRisk.length} customer{atRisk.length > 1 ? 's' : ''} haven't visited in 30+ days
+                {atRisk.length} customer{atRisk.length > 1 ? 's' : ''} haven&apos;t visited in 30+ days
               </p>
               <p className="text-amber-700 text-[12px] mt-0.5">
                 Send them a personalised win-back message right now — one click.
@@ -163,18 +170,70 @@ export function DashboardPage() {
             </div>
           </div>
           <button
-            onClick={sendWinBack}
-            disabled={winBackSending}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 text-white text-[13px] font-semibold hover:bg-amber-600 disabled:opacity-60 shrink-0 transition"
+            onClick={openWinBackModal}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 text-white text-[13px] font-semibold hover:bg-amber-600 shrink-0 transition"
           >
             <FiSend className="text-[13px]" />
-            {winBackSending ? 'Sending…' : `Win Back ${atRisk.length} Customers`}
+            Win Back {atRisk.length} Customers
           </button>
         </div>
       )}
       {winBackDone && (
         <div className="mb-7 bg-emerald-50 border border-emerald-200 rounded-2xl px-5 py-3 text-emerald-800 text-[13px] font-semibold">
           ✅ Win-back messages sent to {atRisk.length} customers!
+        </div>
+      )}
+
+      {/* Win-Back Campaign Modal */}
+      {showWinBackModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-6">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-bold text-slate-900">Compose Win-Back Campaign</h2>
+              <button onClick={() => setShowWinBackModal(false)} className="p-1 rounded-lg hover:bg-slate-100">
+                <FiX className="text-lg text-slate-500" />
+              </button>
+            </div>
+
+            <p className="text-[13px] text-slate-500 mb-4">
+              This message will be emailed to <span className="font-semibold text-slate-700">{atRisk.length} at-risk customer{atRisk.length > 1 ? 's' : ''}</span> who haven&apos;t visited recently.
+            </p>
+
+            <label className="block text-[12px] font-semibold text-slate-600 mb-1">Subject</label>
+            <input
+              type="text"
+              value={winBackSubject}
+              onChange={e => setWinBackSubject(e.target.value)}
+              className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-[14px] text-slate-900 focus:ring-2 focus:ring-amber-400 focus:border-amber-400 outline-none mb-4"
+              placeholder="Email subject line..."
+            />
+
+            <label className="block text-[12px] font-semibold text-slate-600 mb-1">Message Body</label>
+            <textarea
+              value={winBackBody}
+              onChange={e => setWinBackBody(e.target.value)}
+              rows={5}
+              className="w-full border border-slate-200 rounded-xl px-4 py-3 text-[14px] text-slate-900 focus:ring-2 focus:ring-amber-400 focus:border-amber-400 outline-none resize-none mb-5"
+              placeholder="Write your win-back message..."
+            />
+
+            <div className="flex items-center justify-end gap-3">
+              <button
+                onClick={() => setShowWinBackModal(false)}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 text-[13px] font-semibold text-slate-700 hover:bg-slate-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={sendWinBack}
+                disabled={winBackSending || !winBackSubject.trim() || !winBackBody.trim()}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 text-white text-[13px] font-semibold hover:bg-amber-600 disabled:opacity-50 transition"
+              >
+                <FiSend className="text-[13px]" />
+                {winBackSending ? 'Sending...' : `Send to ${atRisk.length} Customers`}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

@@ -164,6 +164,7 @@ function buildTelegramMessage(
 
   if (pointsBalance > 0) {
     lines.push(`👋 Hey! You currently have *${pointsBalance} reward points* waiting for you 🎉`);
+    lines.push(``);
     lines.push(`Who knows? On your next visit, you could unlock even bigger savings and exclusive offers. Your special deals are live now — don't let it go to waste, we're waiting to welcome you back!`);
     lines.push(``);
   } else {
@@ -173,10 +174,12 @@ function buildTelegramMessage(
 
   if (safeCampaigns.length > 0) {
     lines.push(`🎉 *Active Offers for You:*`);
-    safeCampaigns.slice(0, 4).forEach((c) => {
-      lines.push(`• ${c.title}${c.description ? ` — ${c.description}` : ''}`);
-    });
     lines.push(``);
+    safeCampaigns.slice(0, 4).forEach((c) => {
+      lines.push(`• *${c.title}*`);
+      if (c.description) lines.push(`  ${c.description}`);
+      lines.push(``);
+    });
   }
 
   lines.push(`Come back soon! 😊`);
@@ -268,14 +271,16 @@ function buildCampaignTelegramMessage(
     `👋 Hey *${safeName}*!`,
     ``,
     `🎉 *${campaignTitle}*`,
+    ``,
   ];
 
   if (campaignDescription?.trim()) {
     lines.push(campaignDescription.trim());
+    lines.push(``);
   }
 
-  lines.push(``);
   lines.push(`Hurry up — we are waiting to serve you! 🔥`);
+  lines.push(``);
   lines.push(`_Powered by DineFlow_`);
 
   return lines.join('\n');

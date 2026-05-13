@@ -34,10 +34,18 @@ export function AppShell() {
   const location = useLocation();
   const token = useStore((s) => s.token);
   const merchantName = useStore((s) => s.merchantName);
+  const setMerchantName = useStore((s) => s.setMerchantName);
   const clearAuth = useStore((s) => s.clearAuth);
   const [live, setLive] = useState<number | null>(null);
   const [searchQ, setSearchQ] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
+
+  useEffect(() => {
+    if (!token) return;
+    api.getMerchantProfile().then(({ data }) => {
+      if (data?.name) setMerchantName(data.name);
+    }).catch(() => {});
+  }, [token]);
 
   const isCustomers = location.pathname.startsWith('/customers');
   const searchPlaceholder = isCustomers

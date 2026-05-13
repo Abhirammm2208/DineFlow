@@ -69,13 +69,16 @@ export async function broadcastCampaign(
 
   console.log(`[Campaign Scheduler] Broadcasting "${campaign.title}" to ${customers.length} customers (segment: ${segment})`);
 
-  // 4. Send notifications in parallel batches of 10
+  // 4. Send notifications in batches of 4 with 1.1s delay (Resend allows 5 req/s)
   let sent = 0;
   let failed = 0;
   const campaignTitle: string = (campaign as any).title;
   const campaignDesc: string | null = (campaign as any).description ?? null;
 
-  const BATCH = 10;
+  const BATCH = 4;
+  const DELAY_MS = 1100; // wait 1.1s between batches to stay under 5 req/s
+  const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
   for (let i = 0; i < customers.length; i += BATCH) {
     const batch = customers.slice(i, i + BATCH);
     const results = await Promise.allSettled(
@@ -93,6 +96,8 @@ export async function broadcastCampaign(
         failed++;
       }
     });
+    // Rate limit: wait before next batch
+    if (i + BATCH < customers.length) await sleep(DELAY_MS);
   }
 
   // 5. Mark campaign as sent
