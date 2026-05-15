@@ -9,9 +9,9 @@ import {
   FiRepeat,
   FiShoppingBag,
   FiDollarSign,
-  FiAlertTriangle,
-  FiSend,
   FiAward,
+  FiInfo,
+  FiEdit2,
   FiX,
 } from 'react-icons/fi';
 
@@ -53,12 +53,11 @@ export function DashboardPage() {
   const [topByVisits, setTopByVisits] = useState<TopCustomer[]>([]);
   const [topBySpend, setTopBySpend] = useState<TopCustomer[]>([]);
   const [atRisk, setAtRisk] = useState<AtRiskCustomer[]>([]);
-  const [winBackSending, setWinBackSending] = useState(false);
-  const [winBackDone, setWinBackDone] = useState(false);
   const [leaderTab, setLeaderTab] = useState<'visits' | 'spend'>('visits');
-  const [showWinBackModal, setShowWinBackModal] = useState(false);
-  const [winBackSubject, setWinBackSubject] = useState('We Miss You! Come Back for a Special Treat');
-  const [winBackBody, setWinBackBody] = useState('Hey! It\'s been a while since your last visit. We\'ve been saving your table — come back and enjoy a welcome-back treat exclusively for you. Can\'t wait to see you again!');
+  const [showWinBackEditModal, setShowWinBackEditModal] = useState(false);
+  const [winBackSubject, setWinBackSubject] = useState('');
+  const [winBackBody, setWinBackBody] = useState('');
+  const [savingTemplate, setSavingTemplate] = useState(false);
 
   const demoStats: DashStats = {
     todayRevenue: 2480.5,
@@ -79,15 +78,20 @@ export function DashboardPage() {
     }
     (async () => {
       try {
-        const [statsRes, topRes, riskRes] = await Promise.all([
+        const [statsRes, topRes, riskRes, profileRes] = await Promise.all([
           api.getDashboardStats(),
           api.getTopCustomers(),
           api.getAtRisk(),
+          api.getMerchantProfile(),
         ]);
         setStats(statsRes.data);
         setTopByVisits(topRes.data.byVisits || []);
         setTopBySpend(topRes.data.bySpend || []);
         setAtRisk(riskRes.data.customers || []);
+        // Load saved winback template from profile
+        const profile = profileRes.data;
+        setWinBackSubject(profile.winback_subject || '');
+        setWinBackBody(profile.winback_body || '');
       } catch {
         setStats(demoStats);
       } finally {
@@ -108,21 +112,6 @@ export function DashboardPage() {
     } catch { alert('Export failed'); }
   };
 
-  const openWinBackModal = () => setShowWinBackModal(true);
-
-  const sendWinBack = async () => {
-    if (!winBackSubject.trim() || !winBackBody.trim()) return;
-    setWinBackSending(true);
-    try {
-      await api.createCampaign(winBackSubject.trim(), winBackBody.trim(), 'active', undefined, 'at_risk');
-      const campaigns = await api.getCampaigns();
-      const camp = (campaigns.data.campaigns || []).find((c: any) => c.title === winBackSubject.trim() && !c.sent_at);
-      if (camp?.id) await api.broadcastCampaign(camp.id);
-      setWinBackDone(true);
-      setShowWinBackModal(false);
-    } catch { alert('Win-back send failed'); }
-    finally { setWinBackSending(false); }
-  };
 
   const fmtMoney = (n: number) =>
     `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
@@ -155,84 +144,31 @@ export function DashboardPage() {
         </button>
       </div>
 
-      {/* Win-Back Banner */}
-      {!loading && atRisk.length > 0 && !winBackDone && (
-        <div className="mb-7 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-amber-50 border border-amber-200 rounded-2xl px-5 py-4">
+      {/* Automated Win-Back Banner */}
+      {!loading && atRisk.length > 0 && (
+        <div className="mb-7 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-blue-50 border border-blue-200 rounded-2xl px-5 py-4">
           <div className="flex items-start gap-3">
-            <FiAlertTriangle className="text-amber-500 text-xl mt-0.5 shrink-0" />
+            <FiInfo className="text-blue-500 text-xl mt-0.5 shrink-0" />
             <div>
-              <p className="font-semibold text-amber-900 text-[14px]">
+              <p className="font-semibold text-blue-900 text-[14px]">
                 {atRisk.length} customer{atRisk.length > 1 ? 's' : ''} haven&apos;t visited in 30+ days
               </p>
-              <p className="text-amber-700 text-[12px] mt-0.5">
-                Send them a personalised win-back message right now — one click.
+              <p className="text-blue-700 text-[12px] mt-0.5">
+                Win-back messages are automatically sent daily at 10 AM to inactive customers with points.
               </p>
             </div>
           </div>
-          <button
-            onClick={openWinBackModal}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 text-white text-[13px] font-semibold hover:bg-amber-600 shrink-0 transition"
-          >
-            <FiSend className="text-[13px]" />
-            Win Back {atRisk.length} Customers
-          </button>
-        </div>
-      )}
-      {winBackDone && (
-        <div className="mb-7 bg-emerald-50 border border-emerald-200 rounded-2xl px-5 py-3 text-emerald-800 text-[13px] font-semibold">
-          ✅ Win-back messages sent to {atRisk.length} customers!
-        </div>
-      )}
-
-      {/* Win-Back Campaign Modal */}
-      {showWinBackModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-6">
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-bold text-slate-900">Compose Win-Back Campaign</h2>
-              <button onClick={() => setShowWinBackModal(false)} className="p-1 rounded-lg hover:bg-slate-100">
-                <FiX className="text-lg text-slate-500" />
-              </button>
-            </div>
-
-            <p className="text-[13px] text-slate-500 mb-4">
-              This message will be emailed to <span className="font-semibold text-slate-700">{atRisk.length} at-risk customer{atRisk.length > 1 ? 's' : ''}</span> who haven&apos;t visited recently.
-            </p>
-
-            <label className="block text-[12px] font-semibold text-slate-600 mb-1">Subject</label>
-            <input
-              type="text"
-              value={winBackSubject}
-              onChange={e => setWinBackSubject(e.target.value)}
-              className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-[14px] text-slate-900 focus:ring-2 focus:ring-amber-400 focus:border-amber-400 outline-none mb-4"
-              placeholder="Email subject line..."
-            />
-
-            <label className="block text-[12px] font-semibold text-slate-600 mb-1">Message Body</label>
-            <textarea
-              value={winBackBody}
-              onChange={e => setWinBackBody(e.target.value)}
-              rows={5}
-              className="w-full border border-slate-200 rounded-xl px-4 py-3 text-[14px] text-slate-900 focus:ring-2 focus:ring-amber-400 focus:border-amber-400 outline-none resize-none mb-5"
-              placeholder="Write your win-back message..."
-            />
-
-            <div className="flex items-center justify-end gap-3">
-              <button
-                onClick={() => setShowWinBackModal(false)}
-                className="px-4 py-2.5 rounded-xl border border-slate-200 text-[13px] font-semibold text-slate-700 hover:bg-slate-50 transition"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={sendWinBack}
-                disabled={winBackSending || !winBackSubject.trim() || !winBackBody.trim()}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 text-white text-[13px] font-semibold hover:bg-amber-600 disabled:opacity-50 transition"
-              >
-                <FiSend className="text-[13px]" />
-                {winBackSending ? 'Sending...' : `Send to ${atRisk.length} Customers`}
-              </button>
-            </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowWinBackEditModal(true)}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white border border-blue-200 text-blue-700 text-[11px] font-semibold hover:bg-blue-50 transition"
+              title="Customize win-back message"
+            >
+              <FiEdit2 className="text-[11px]" /> Edit Message
+            </button>
+            <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-100 text-blue-700 text-[11px] font-semibold">
+              🤖 Automated Daily
+            </span>
           </div>
         </div>
       )}
@@ -241,6 +177,73 @@ export function DashboardPage() {
         <div className="text-slate-500 text-sm">Loading metrics…</div>
       ) : (
         <>
+      {/* Win-Back Message Edit Modal */}
+      {showWinBackEditModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-bold text-slate-900">Customize Win-Back Message</h2>
+              <button onClick={() => setShowWinBackEditModal(false)} className="p-1 rounded-lg hover:bg-slate-100">
+                <FiX className="text-lg text-slate-500" />
+              </button>
+            </div>
+            <p className="text-[13px] text-slate-500 mb-4">
+              Edit the default message below. Variables: {'{name}'}, {'{merchant}'}, {'{points}'}, {'{discountPct}'}, {'{days}'}
+            </p>
+
+            <label className="block text-[12px] font-semibold text-slate-600 mb-1">Subject</label>
+            <input
+              type="text"
+              value={winBackSubject || "We miss you at {merchant}! Your {points} points are waiting"}
+              onChange={e => setWinBackSubject(e.target.value === "We miss you at {merchant}! Your {points} points are waiting" ? '' : e.target.value)}
+              placeholder="Email subject..."
+              className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-[14px] text-slate-900 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 outline-none mb-4"
+            />
+            <label className="block text-[12px] font-semibold text-slate-600 mb-1">Message Body</label>
+            <textarea
+              value={winBackBody || "Hey {name}! We noticed you haven't visited {merchant} in {days} days — we miss you!\n\n🎁 You have {points} reward points waiting! That's worth a {discountPct}% discount on your next visit. We have exciting offers at the restaurant — visit for more details!\n\nWe can't wait to serve you again! Hurry up and claim your rewards before they expire. 🔥"}
+              onChange={e => {
+                const defaultBody = "Hey {name}! We noticed you haven't visited {merchant} in {days} days — we miss you!\n\n🎁 You have {points} reward points waiting! That's worth a {discountPct}% discount on your next visit. We have exciting offers at the restaurant — visit for more details!\n\nWe can't wait to serve you again! Hurry up and claim your rewards before they expire. 🔥";
+                setWinBackBody(e.target.value === defaultBody ? '' : e.target.value);
+              }}
+              rows={7}
+              placeholder="Write your win-back message..."
+              className="w-full border border-slate-200 rounded-xl px-4 py-3 text-[14px] text-slate-900 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 outline-none resize-none mb-5"
+            />
+            <div className="flex items-center justify-end gap-3">
+              <button
+                onClick={() => {
+                  setWinBackSubject('');
+                  setWinBackBody('');
+                  localStorage.removeItem('winback_subject');
+                  localStorage.removeItem('winback_body');
+                }}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 text-[13px] font-semibold text-slate-700 hover:bg-slate-50 transition"
+              >
+                Reset to Default
+              </button>
+              <button
+                onClick={async () => {
+                  setSavingTemplate(true);
+                  try {
+                    await api.updateMerchantProfile({ winback_subject: winBackSubject, winback_body: winBackBody });
+                    setShowWinBackEditModal(false);
+                  } catch {
+                    alert('Failed to save template');
+                  } finally {
+                    setSavingTemplate(false);
+                  }
+                }}
+                disabled={savingTemplate}
+                className="px-5 py-2.5 rounded-xl bg-blue-600 text-white text-[13px] font-semibold hover:bg-blue-700 transition disabled:opacity-50"
+              >
+                {savingTemplate ? 'Saving…' : 'Save Template'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
           {/* Stat Cards */}
           <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-5 mb-8">
             <div className="df-card p-6">

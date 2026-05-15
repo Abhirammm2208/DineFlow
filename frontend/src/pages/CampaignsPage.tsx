@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/store.js';
 import api from '../services/api.js';
-import { FiPlus, FiSend, FiZap } from 'react-icons/fi';
+import { FiPlus, FiSend, FiZap, FiEdit2, FiTrash2, FiX } from 'react-icons/fi';
 import { Alert, Input, Button } from '../components/index';
 
 const SEGMENTS = [
@@ -38,6 +38,12 @@ export function CampaignsPage() {
   const [segment, setSegment] = useState('all');
   const [creating, setCreating] = useState(false);
   const [broadcasting, setBroadcasting] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [editing, setEditing] = useState<any | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDesc, setEditDesc] = useState('');
+  const [editSegment, setEditSegment] = useState('all');
+  const [editStatus, setEditStatus] = useState('active');
   const [now, setNow] = useState(Date.now());
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -91,10 +97,113 @@ export function CampaignsPage() {
     }
   };
 
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this campaign? This cannot be undone.')) return;
+    setDeleting(id);
+    try {
+      await api.deleteCampaign(id);
+      await reload();
+      setNotification({ type: 'success', message: 'Campaign deleted successfully' });
+    } catch (err: any) {
+      setNotification({ type: 'error', message: err?.response?.data?.error || 'Failed to delete campaign' });
+    } finally {
+      setDeleting(null);
+    }
+  };
+
+  const openEditModal = (campaign: any) => {
+    setEditing(campaign);
+    setEditTitle(campaign.title || '');
+    setEditDesc(campaign.description || '');
+    setEditSegment(campaign.target_segment || 'all');
+    setEditStatus(campaign.status || 'active');
+  };
+
+  const handleUpdate = async () => {
+    if (!editing?.id) return;
+    if (!editTitle.trim()) {
+      setNotification({ type: 'error', message: 'Campaign title is required' });
+      return;
+    }
+    try {
+      await api.updateCampaign(editing.id, {
+        title: editTitle,
+        description: editDesc,
+        status: editStatus,
+        target_segment: editSegment,
+      });
+      await reload();
+      setNotification({ type: 'success', message: 'Campaign updated!' });
+      setEditing(null);
+    } catch (err: any) {
+      setNotification({ type: 'error', message: err?.response?.data?.error || 'Failed to update campaign' });
+    }
+  };
+
   return (
     <div className="px-6 lg:px-10 py-8 max-w-[1280px] mx-auto">
       {notification && (
         <Alert type={notification.type} message={notification.message} onClose={() => setNotification(null)} />
+      )}
+
+      {/* Edit Modal */}
+      {editing && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-8 max-w-md w-full shadow-xl">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-xl font-bold text-slate-900">Edit Campaign</h2>
+              <button onClick={() => setEditing(null)} className="p-2 hover:bg-slate-100 rounded-full">
+                <FiX className="text-slate-500" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <Input
+                label="Campaign Title"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                placeholder="e.g., Monsoon Special Offer"
+              />
+              <Input
+                label="Description"
+                value={editDesc}
+                onChange={(e) => setEditDesc(e.target.value)}
+                placeholder="What's the offer? (shown in notification)"
+              />
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Target Segment</label>
+                <select
+                  className="w-full px-3 py-2 rounded-lg bg-slate-100 border border-slate-200 text-sm"
+                  value={editSegment}
+                  onChange={(e) => setEditSegment(e.target.value)}
+                >
+                  {SEGMENTS.map((s) => (
+                    <option key={s.id} value={s.id}>{s.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Status</label>
+                <select
+                  className="w-full px-3 py-2 rounded-lg bg-slate-100 border border-slate-200 text-sm"
+                  value={editStatus}
+                  onChange={(e) => setEditStatus(e.target.value)}
+                >
+                  <option value="draft">Draft</option>
+                  <option value="active">Active</option>
+                  <option value="scheduled">Scheduled</option>
+                </select>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <Button variant="secondary" onClick={() => setEditing(null)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleUpdate}>
+                  Save Changes
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {showForm && (
@@ -175,33 +284,51 @@ export function CampaignsPage() {
               <span className={`text-[11px] font-bold uppercase px-2 py-1 rounded-full ${statusBadge(c.status)}`}>
                 {c.status}
               </span>
-              {c.id && !c.id.startsWith('seed-') && (() => {
-                const sentMs = c.sent_at ? new Date(c.sent_at).getTime() : 0;
-                const elapsed = now - sentMs;
-                const onCooldown = sentMs > 0 && elapsed < COOLDOWN_MS;
-                const secsLeft = onCooldown ? Math.ceil((COOLDOWN_MS - elapsed) / 1000) : 0;
-                const minsLeft = Math.floor(secsLeft / 60);
-                const sLeft = secsLeft % 60;
-                return (
-                  <button
-                    onClick={() => !onCooldown && handleBroadcast(c.id, c.title)}
-                    disabled={broadcasting === c.id || onCooldown}
-                    title={onCooldown ? `Available again in ${minsLeft}m ${sLeft}s` : 'Send to customers now'}
-                    className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition ${
-                      onCooldown
-                        ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                        : 'bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50'
-                    }`}
-                  >
-                    <FiZap className="text-[11px]" />
-                    {broadcasting === c.id
-                      ? 'Sending…'
-                      : onCooldown
-                      ? `${minsLeft}m ${sLeft}s`
-                      : 'Send Now'}
-                  </button>
-                );
-              })()}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => openEditModal(c)}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition"
+                  title="Edit campaign"
+                >
+                  <FiEdit2 className="text-[11px]" /> Edit
+                </button>
+                <button
+                  onClick={() => handleDelete(c.id)}
+                  disabled={deleting === c.id}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-rose-50 text-rose-600 hover:bg-rose-100 transition disabled:opacity-50"
+                  title="Delete campaign"
+                >
+                  <FiTrash2 className="text-[11px]" />
+                  {deleting === c.id ? 'Deleting…' : 'Delete'}
+                </button>
+                {c.id && !c.id.startsWith('seed-') && (() => {
+                  const sentMs = c.sent_at ? new Date(c.sent_at).getTime() : 0;
+                  const elapsed = now - sentMs;
+                  const onCooldown = sentMs > 0 && elapsed < COOLDOWN_MS;
+                  const secsLeft = onCooldown ? Math.ceil((COOLDOWN_MS - elapsed) / 1000) : 0;
+                  const minsLeft = Math.floor(secsLeft / 60);
+                  const sLeft = secsLeft % 60;
+                  return (
+                    <button
+                      onClick={() => !onCooldown && handleBroadcast(c.id, c.title)}
+                      disabled={broadcasting === c.id || onCooldown}
+                      title={onCooldown ? `Available again in ${minsLeft}m ${sLeft}s` : 'Send to customers now'}
+                      className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition ${
+                        onCooldown
+                          ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                          : 'bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50'
+                      }`}
+                    >
+                      <FiZap className="text-[11px]" />
+                      {broadcasting === c.id
+                        ? 'Sending…'
+                        : onCooldown
+                        ? `${minsLeft}m ${sLeft}s`
+                        : 'Send Now'}
+                    </button>
+                  );
+                })()}
+              </div>
             </div>
           </li>
         ))}

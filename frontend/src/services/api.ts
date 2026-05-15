@@ -39,6 +39,8 @@ export const api = {
     receipt_template?: string;
     staff_roles?: string[];
     points_rate?: number;
+    winback_subject?: string;
+    winback_body?: string;
   }) => {
     return apiClient.put('/merchants/profile', payload);
   },
@@ -216,6 +218,14 @@ export const api = {
 
   broadcastCampaign: async (id: string) => {
     return apiClient.post(`/campaigns/${id}/broadcast`);
+  },
+
+  deleteCampaign: async (id: string) => {
+    return apiClient.delete(`/campaigns/${id}`);
+  },
+
+  updateCampaign: async (id: string, patch: { title?: string; description?: string; status?: string; target_segment?: string }) => {
+    return apiClient.patch(`/campaigns/${id}`, patch);
   },
 
   getAnalyticsSummary: async () => {
