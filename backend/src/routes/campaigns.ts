@@ -145,4 +145,26 @@ router.post('/:id/broadcast', authMiddleware, async (req: Request, res: Response
   }
 });
 
+// DELETE /api/campaigns/:id — delete a campaign
+router.delete('/:id', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const merchantId = req.merchantId!;
+    const { id } = req.params;
+
+    const { error } = await supabase
+      .from('campaigns')
+      .delete()
+      .eq('id', id)
+      .eq('merchant_id', merchantId);
+
+    if (error) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    res.json({ success: true, message: 'Campaign deleted' });
+  } catch {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;

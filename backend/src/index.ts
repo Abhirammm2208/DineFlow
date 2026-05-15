@@ -69,7 +69,11 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 });
 
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`DineFlow backend: http://localhost:${PORT}`);
   console.log('API: /api/merchants, /menu, /customers, /bills, /dashboard, /search, /v1, /loyalty, /campaigns, /analytics');
+
+  // Start automated win-back scheduler (runs once daily at 10 AM)
+  const { startWinBackScheduler } = await import('./services/winBackScheduler.js');
+  startWinBackScheduler();
 });

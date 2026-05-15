@@ -104,7 +104,7 @@ router.get('/profile', authMiddleware, async (req: Request, res: Response) => {
     // Try to select extended columns first
     let { data, error } = await supabase
       .from('merchants')
-      .select('id, name, email, phone, created_at, tax_rate, receipt_template, staff_roles, points_rate')
+      .select('id, name, email, phone, created_at, tax_rate, receipt_template, staff_roles, points_rate, winback_subject, winback_body')
       .eq('id', merchantId)
       .single();
 
@@ -128,6 +128,8 @@ router.get('/profile', authMiddleware, async (req: Request, res: Response) => {
       receipt_template: (data as any).receipt_template || 'standard',
       staff_roles: (data as any).staff_roles || ['admin', 'manager', 'cashier'],
       points_rate: (data as any).points_rate ?? 5,
+      winback_subject: (data as any).winback_subject || '',
+      winback_body: (data as any).winback_body || '',
     });
   } catch (error) {
     res.status(500).json({ error: 'Internal server error' });
@@ -138,7 +140,7 @@ router.get('/profile', authMiddleware, async (req: Request, res: Response) => {
 router.put('/profile', authMiddleware, async (req: Request, res: Response) => {
   try {
     const merchantId = req.merchantId;
-    const { name, phone, tax_rate, receipt_template, staff_roles, points_rate } = req.body;
+    const { name, phone, tax_rate, receipt_template, staff_roles, points_rate, winback_subject, winback_body } = req.body;
 
     const basePayload: Record<string, unknown> = {};
     const extraPayload: Record<string, unknown> = {};
@@ -148,6 +150,8 @@ router.put('/profile', authMiddleware, async (req: Request, res: Response) => {
     if (tax_rate !== undefined) extraPayload.tax_rate = Number(tax_rate);
     if (receipt_template !== undefined) extraPayload.receipt_template = receipt_template;
     if (points_rate !== undefined) extraPayload.points_rate = Number(points_rate);
+    if (winback_subject !== undefined) extraPayload.winback_subject = winback_subject;
+    if (winback_body !== undefined) extraPayload.winback_body = winback_body;
     if (staff_roles !== undefined) extraPayload.staff_roles = Array.isArray(staff_roles)
       ? staff_roles
       : String(staff_roles)
@@ -181,6 +185,8 @@ router.put('/profile', authMiddleware, async (req: Request, res: Response) => {
       tax_rate: (data as any).tax_rate ?? tax_rate ?? 0.085,
       receipt_template: (data as any).receipt_template || receipt_template || 'standard',
       points_rate: (data as any).points_rate ?? points_rate ?? 5,
+      winback_subject: (data as any).winback_subject || winback_subject || '',
+      winback_body: (data as any).winback_body || winback_body || '',
       staff_roles: (data as any).staff_roles || (Array.isArray(staff_roles)
         ? staff_roles
         : typeof staff_roles === 'string'

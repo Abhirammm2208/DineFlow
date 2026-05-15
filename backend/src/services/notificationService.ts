@@ -378,6 +378,110 @@ export async function sendNotification(
   return { email, telegram };
 }
 
+// ─── Win-Back Notification (Automated for 30+ days inactive customers) ─────────
+
+export async function sendWinBackNotification(
+  toEmail: string | null | undefined,
+  telegramChatId: string | null | undefined,
+  customerName: string | null | undefined,
+  merchantName: string | null | undefined,
+  pointsBalance: number,
+  daysSinceVisit: number,
+  customSubject?: string,
+  customBody?: string
+): Promise<void> {
+  const safeName = customerName || 'there';
+  const safeMerchant = merchantName || 'Restaurant';
+  const discountPct = Math.min(Math.floor(pointsBalance / 100), 10);
+
+  // Use custom template if provided, otherwise use default
+  const subject = customSubject?.trim()
+    ? customSubject.replace(/\{name\}/g, safeName).replace(/\{merchant\}/g, safeMerchant).replace(/\{points\}/g, String(pointsBalance)).replace(/\{discountPct\}/g, String(discountPct)).replace(/\{days\}/g, String(daysSinceVisit))
+    : `We miss you at ${safeMerchant}! Your ${pointsBalance} points are waiting`;
+
+  const defaultHtml = `
+    <div style="max-width:520px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;padding:32px 24px;background:#ffffff;border-radius:16px;border:1px solid #e2e8f0;">
+      <p style="margin:0 0 16px;font-size:15px;">Hey <strong>${escapeHtml(safeName)}</strong>! 👋</p>
+      <p style="margin:0 0 16px;font-size:15px;">We noticed you haven't visited <strong>${escapeHtml(safeMerchant)}</strong> in ${daysSinceVisit} days — we miss you!</p>
+      <div style="margin:0 0 20px;padding:18px 20px;border-radius:14px;background:#fef3c7;border:1px solid #fde68a;">
+        <p style="margin:0;font-size:16px;font-weight:700;color:#92400e;">🎁 You have <strong>${pointsBalance} reward points</strong> waiting!</p>
+        <p style="margin:8px 0 0;font-size:14px;color:#78350f;">That's worth a <strong>${discountPct}% discount</strong> on your next visit. We have exciting offers at the restaurant — visit for more details!</p>
+      </div>
+      <p style="margin:0 0 8px;font-size:15px;">We can't wait to serve you again! Hurry up and claim your rewards before they expire. 🔥</p>
+      <p style="margin:20px 0 0;font-size:11px;color:#9ca3af;">Powered by DineFlow</p>
+    </div>
+  `;
+  const defaultText = `Hey ${safeName}! We noticed you haven't visited ${safeMerchant} in ${daysSinceVisit} days — we miss you! You have ${pointsBalance} reward points waiting, worth a ${discountPct}% discount on your next visit. We have exciting offers at the restaurant — visit for more details! We can't wait to serve you again. Hurry up and claim your rewards before they expire!`;
+
+  const html = customBody?.trim()
+    ? `<div style="max-width:520px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;padding:32px 24px;background:#ffffff;border-radius:16px;border:1px solid #e2e8f0;">
+        ${customBody
+          .replace(/\{name\}/g, escapeHtml(safeName))
+          .replace(/\{merchant\}/g, escapeHtml(safeMerchant))
+          .replace(/\{points\}/g, String(pointsBalance))
+          .replace(/\{discountPct\}/g, String(discountPct))
+          .replace(/\{days\}/g, String(daysSinceVisit))
+          .replace(/\n/g, '<br>')}
+        <p style="margin:20px 0 0;font-size:11px;color:#9ca3af;">Powered by DineFlow</p>
+       </div>`
+    : defaultHtml;
+
+  const text = customBody?.trim()
+    ? customBody
+        .replace(/\{name\}/g, safeName)
+        .replace(/\{merchant\}/g, safeMerchant)
+        .replace(/\{points\}/g, String(pointsBalance))
+        .replace(/\{discountPct\}/g, String(discountPct))
+        .replace(/\{days\}/g, String(daysSinceVisit))
+    : defaultText;
+
+  // Email
+  if (toEmail?.trim()) {
+    const resend = getResend();
+    const fromEmail = process.env.RESEND_FROM_EMAIL || 'noreply@abhiram.codes';
+    const fromName = process.env.SMTP_FROM_NAME || 'DineFlow Billing';
+
+    if (resend) {
+      resend.emails.send({ from: `${fromName} <${fromEmail}>`, to: toEmail.trim(), subject, html, text })
+        .then(() => console.log(`[WinBack] Email sent to ${toEmail}`))
+        .catch((err: any) => console.error('[WinBack] Email failed:', err));
+    }
+  }
+
+  // Telegram
+  const defaultTelegramMsg = [
+    `👋 *We miss you at ${safeMerchant}!*`,
+    ``,
+    `Hey *${safeName}*! 👋`,
+    ``,
+    `We noticed you haven't visited us in *${daysSinceVisit} days* — we can't wait to see you again!`,
+    ``,
+    `🎁 *Good news:* You have *${pointsBalance} reward points* waiting for you!`,
+    `That's a *${discountPct}% discount* on your next visit.`,
+    ``,
+    `We have exciting offers at the restaurant — visit us for more details!`,
+    ``,
+    `Hurry up and claim your rewards before they expire 🔥`,
+    `We can't wait to serve you!`,
+    ``,
+    `_Powered by DineFlow_`,
+  ].join('\n');
+
+  const telegramMsg = customBody?.trim()
+    ? customBody
+        .replace(/\{name\}/g, `*${safeName}*`)
+        .replace(/\{merchant\}/g, `*${safeMerchant}*`)
+        .replace(/\{points\}/g, `*${pointsBalance}*`)
+        .replace(/\{discountPct\}/g, `*${discountPct}*`)
+        .replace(/\{days\}/g, `*${daysSinceVisit}*`)
+    : defaultTelegramMsg;
+
+  if (telegramChatId?.trim() && telegramConfigured && telegramBotToken) {
+    telegramPost(telegramBotToken, telegramChatId.trim(), telegramMsg)
+      .catch((err) => console.error('[WinBack] Telegram failed:', err));
+  }
+}
+
 // ─── Points Expiry Warning ───────────────────────────────────────────────────
 
 export async function sendPointsExpiryWarning(

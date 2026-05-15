@@ -12,9 +12,12 @@ ADD COLUMN IF NOT EXISTS crm_status TEXT DEFAULT 'active';
 ALTER TABLE customers
 ADD COLUMN IF NOT EXISTS loyalty_tier TEXT DEFAULT 'member';
 
--- 3) Add last_visit_at if missing
+-- 3) Add last_visit_at and last_winback_sent_at if missing
 ALTER TABLE customers
 ADD COLUMN IF NOT EXISTS last_visit_at TIMESTAMPTZ;
+
+ALTER TABLE customers
+ADD COLUMN IF NOT EXISTS last_winback_sent_at TIMESTAMPTZ;
 
 -- 4) Create index on email for fast search (safe to re-run)
 DO $$
@@ -76,7 +79,9 @@ ALTER TABLE merchants
 ADD COLUMN IF NOT EXISTS tax_rate DECIMAL(6,4) DEFAULT 0.085,
 ADD COLUMN IF NOT EXISTS receipt_template TEXT DEFAULT 'standard',
 ADD COLUMN IF NOT EXISTS staff_roles TEXT[] DEFAULT ARRAY['admin','manager','cashier'],
-ADD COLUMN IF NOT EXISTS points_rate DECIMAL(5,2) DEFAULT 5;
+ADD COLUMN IF NOT EXISTS points_rate DECIMAL(5,2) DEFAULT 5,
+ADD COLUMN IF NOT EXISTS winback_subject TEXT,
+ADD COLUMN IF NOT EXISTS winback_body TEXT;
 
 -- 9) Ensure menu_items v2 columns exist
 ALTER TABLE menu_items
