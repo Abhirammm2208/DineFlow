@@ -42,5 +42,19 @@ Thumbs.db
 
 # Private docs
 INTERVIEW_DOC.md
+API.md
+DEPLOYMENT.md
+QUICKSTART.md
+RETENZA_SUBMISSION.md
+SETUP.md
+SUMMARY.md
+extensionplan.md
 .vercel
 .env*.local
+
+# Project config
+package.json
+package-lock.json
+tsconfig.json
+docker-compose.yml
+setup.sh
