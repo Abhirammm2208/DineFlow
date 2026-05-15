@@ -31,6 +31,16 @@ function initials(name: string) {
   return ((p[0]?.[0] || '') + (p[1]?.[0] || '')).toUpperCase() || '?';
 }
 
+function inferStatus(c: any): string {
+  const spend = Number(c.total_spend || 0);
+  const visits = Number(c.total_visits || 0);
+  
+  if (spend >= 25000) return 'vip';
+  if (visits <= 1) return 'new';
+  if (spend <= 150 && visits >= 2) return 'at_risk';
+  return 'active';
+}
+
 function badgeClass(status: string) {
   const s = status.toLowerCase();
   if (s === 'vip') return 'bg-emerald-100 text-emerald-800';
@@ -203,7 +213,7 @@ export function CustomersPage() {
             <p className="text-[13px] text-slate-600 mt-1">{detail.phone}</p>
             <div className="flex flex-wrap gap-2 justify-center mt-4">
               <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-900 text-[11px] font-bold uppercase tracking-wide">
-                {tierLabel(detail.crm_status)}
+                {tierLabel(inferStatus(detail))}
               </span>
               <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-800 text-[11px] font-bold">
                 {(detail.points_balance ?? 0).toLocaleString()} points
@@ -440,8 +450,8 @@ export function CustomersPage() {
                       <td className="px-5 py-3.5 text-slate-700">{r.total_visits ?? 0}</td>
                       <td className="px-5 py-3.5 font-medium text-slate-800">{fmt(Number(r.aov || 0))}</td>
                       <td className="px-5 py-3.5">
-                        <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${badgeClass(r.crm_status)}`}>
-                          {(r.crm_status || 'active').toUpperCase()}
+                        <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${badgeClass(inferStatus(r))}`}>
+                          {inferStatus(r).toUpperCase()}
                         </span>
                       </td>
                     </tr>

@@ -140,6 +140,12 @@ export function CampaignsPage() {
     }
   };
 
+  const handleDeleteFromModal = async () => {
+    if (!editing?.id) return;
+    await handleDelete(editing.id);
+    setEditing(null);
+  };
+
   return (
     <div className="px-6 lg:px-10 py-8 max-w-[1280px] mx-auto">
       {notification && (
@@ -193,13 +199,22 @@ export function CampaignsPage() {
                   <option value="scheduled">Scheduled</option>
                 </select>
               </div>
-              <div className="flex gap-3 pt-2">
-                <Button variant="secondary" onClick={() => setEditing(null)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleUpdate}>
-                  Save Changes
-                </Button>
+              <div className="flex items-center justify-between gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={handleDeleteFromModal}
+                  className="px-3 py-2 rounded-lg text-sm font-semibold bg-rose-50 text-rose-600 hover:bg-rose-100 transition"
+                >
+                  Delete
+                </button>
+                <div className="flex gap-3">
+                  <Button variant="secondary" onClick={() => setEditing(null)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleUpdate}>
+                    Save Changes
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
@@ -292,15 +307,7 @@ export function CampaignsPage() {
                 >
                   <FiEdit2 className="text-[11px]" /> Edit
                 </button>
-                <button
-                  onClick={() => handleDelete(c.id)}
-                  disabled={deleting === c.id}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-rose-50 text-rose-600 hover:bg-rose-100 transition disabled:opacity-50"
-                  title="Delete campaign"
-                >
-                  <FiTrash2 className="text-[11px]" />
-                  {deleting === c.id ? 'Deleting…' : 'Delete'}
-                </button>
+                {/* Delete moved into edit modal per design */}
                 {c.id && !c.id.startsWith('seed-') && (() => {
                   const sentMs = c.sent_at ? new Date(c.sent_at).getTime() : 0;
                   const elapsed = now - sentMs;
