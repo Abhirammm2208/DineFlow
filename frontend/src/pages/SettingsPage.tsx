@@ -105,10 +105,14 @@ export function SettingsPage() {
           .filter(Boolean),
       });
 
+      // Clear localStorage so POS fetches fresh value on next load
+      localStorage.removeItem('taxRate');
+      localStorage.removeItem('pointsRate');
+
       // Update store so POS page immediately reflects changes
       setTaxRate(taxRateDecimal);
       setPointsRate(pointsRate);
-      setSaved('Settings saved successfully! Changes will reflect across all pages.');
+      setSaved('Settings saved! Tax rate will update when you return to POS.');
     } catch (err: any) {
       setError(err?.response?.data?.error || 'Failed to save merchant settings');
     } finally {

@@ -30,8 +30,9 @@ export function POSPage() {
   const clearAuth = useStore((s) => s.clearAuth);
   const currentBillItems = useStore((s) => s.currentBillItems);
   const subtotal = useStore((s) => s.subtotal);
-  const taxRate = useStore((s) => s.taxRate);
-  const pointsRate = useStore((s) => s.pointsRate);
+  // Use local state for tax/points rate - fetch fresh from API on every mount
+  const [taxRate, setLocalTaxRate] = useState<number>(0.085);
+  const [pointsRate, setLocalPointsRate] = useState<number>(5);
   const selectedCustomer = useStore((s) => s.selectedCustomer);
   const addBillItem = useStore((s) => s.addBillItem);
   const removeBillItem = useStore((s) => s.removeBillItem);
@@ -42,13 +43,10 @@ export function POSPage() {
   const setTableRef = useStore((s) => s.setTableRef);
   const orderType = useStore((s) => s.orderType);
   const setLastCheckout = useStore((s) => s.setLastCheckout);
-  const setTaxRate = useStore((s) => s.setTaxRate);
-  const setPointsRate = useStore((s) => s.setPointsRate);
 
   const [menuItems, setMenuItems] = useState<any[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [activeCategory, setActiveCategory] = useState('');
-  const [chip, setChip] = useState('all');
   const [phoneSearch, setPhoneSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -112,19 +110,20 @@ export function POSPage() {
         setCategories(cats);
         setActiveCategory(cats[0] || '');
         setTables(tRes.data?.tables || []);
-        
+
         // Load tax rate and points rate from merchant profile
         const taxRateFromProfile = profileRes.data?.tax_rate ?? 0.085;
-        setTaxRate(Number(taxRateFromProfile));
+        setLocalTaxRate(Number(taxRateFromProfile));
         const pointsRateFromProfile = profileRes.data?.points_rate ?? 5;
-        setPointsRate(Number(pointsRateFromProfile));
+        setLocalPointsRate(Number(pointsRateFromProfile));
       } catch {
         setError('Failed to load menu');
       } finally {
         setLoading(false);
       }
     })();
-  }, [token, navigate, setTaxRate, setPointsRate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!token) return;
@@ -138,29 +137,35 @@ export function POSPage() {
     })();
   }, [token]);
 
+  // Re-fetch tax/points rate when window regains focus (e.g., returning from Settings)
+  useEffect(() => {
+    if (!token) return;
+    const handleFocus = async () => {
+      try {
+        const { data } = await api.getMerchantProfile();
+        const newTaxRate = data?.tax_rate ?? 0.085;
+        const newPointsRate = data?.points_rate ?? 5;
+        // Only update if changed to avoid unnecessary re-renders
+        if (Math.abs(newTaxRate - taxRate) > 0.0001) {
+          setLocalTaxRate(Number(newTaxRate));
+        }
+        if (Math.abs(newPointsRate - pointsRate) > 0.0001) {
+          setLocalPointsRate(Number(newPointsRate));
+        }
+      } catch {
+        // Silently fail
+      }
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [token, taxRate, pointsRate]);
+
   const filteredProducts = useMemo(() => {
-    let list = activeCategory ? menuItems.filter((i) => i.category === activeCategory) : menuItems;
-    if (chip !== 'all') {
-      list = list.filter((i) => {
-        const category = (i.category || '').toLowerCase();
-        if (chip === 'vegetarian') {
-          return category.includes('veg');
-        }
-        if (chip === 'non-veg') {
-          return category.includes('non veg') || category.includes('non-veg');
-        }
-        return true;
-      });
-    }
-    return list;
-  }, [menuItems, activeCategory, chip]);
+    return activeCategory ? menuItems.filter((i) => i.category === activeCategory) : menuItems;
+  }, [menuItems, activeCategory]);
 
   const categoryCount = (c: string) => menuItems.filter((i) => i.category === c).length;
 
-  const chips = useMemo(() => {
-    const base = ['all', 'vegetarian', 'non-veg'];
-    return base;
-  }, []);
 
   const handleAddItemWithTracking = (item: any) => {
     addBillItem(item);
@@ -340,7 +345,6 @@ export function POSPage() {
               type="button"
               onClick={() => {
                 setActiveCategory(c);
-                setChip('all');
                 setNavOpen(false);
               }}
               className={`flex items-center justify-between gap-2 px-3 py-2.5 rounded-[12px] text-[13px] font-semibold whitespace-nowrap lg:w-full transition-colors ${
@@ -673,12 +677,17 @@ export function POSPage() {
         <button type="button" onClick={() => navigate('/dashboard')} className="p-2 rounded-lg hover:bg-slate-100 hidden sm:inline-flex">
           <FiArrowLeft />
         </button>
-        <div className="flex items-center gap-2 shrink-0">
+        <button
+          type="button"
+          onClick={() => navigate('/dashboard')}
+          className="flex items-center gap-2 shrink-0 hover:opacity-80 transition-opacity"
+          title="Go to Dashboard"
+        >
           <span className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center text-sm font-bold">D</span>
           <div className="font-bold text-slate-900 text-[15px] leading-none">
             DineFlow <span className="text-slate-400 font-normal text-[12px]">Terminal 1</span>
           </div>
-        </div>
+        </button>
         <select
           className="ml-1 text-[12px] font-semibold border border-slate-200 rounded-[10px] px-2 py-1.5 bg-white min-w-[4.5rem]"
           value={tableRef}
@@ -759,21 +768,6 @@ export function POSPage() {
               Table {tableRef}
             </span>
             <span className="text-[11px] text-slate-400 font-medium">Order {displayOrder || '—'}</span>
-          </div>
-
-          <div className="flex gap-2 overflow-x-auto pb-2 mb-4 scrollbar-none">
-            {chips.map((c) => (
-              <button
-                key={c}
-                type="button"
-                onClick={() => setChip(c)}
-                className={`shrink-0 px-4 py-2 rounded-full text-[12px] font-bold capitalize ${
-                  chip === c ? 'bg-slate-900 text-white shadow' : 'bg-white border border-slate-200 text-slate-700'
-                }`}
-              >
-                {c === 'all' ? `All ${activeCategory || 'Menu'}` : c}
-              </button>
-            ))}
           </div>
 
           {loading ? (
