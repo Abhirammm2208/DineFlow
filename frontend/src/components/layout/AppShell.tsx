@@ -37,6 +37,8 @@ export function AppShell() {
   const setMerchantName = useStore((s) => s.setMerchantName);
   const clearAuth = useStore((s) => s.clearAuth);
   const [live, setLive] = useState<number | null>(null);
+  const [loadingLive, setLoadingLive] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<number | null>(null);
   const [searchQ, setSearchQ] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
 
@@ -55,12 +57,20 @@ export function AppShell() {
   useEffect(() => {
     if (!token) return;
     let cancelled = false;
+    let first = true;
     const poll = async () => {
+      if (first) setLoadingLive(true);
       try {
         const { data } = await api.getLiveRevenue();
-        if (!cancelled) setLive(data.liveRevenue ?? 0);
+        if (!cancelled) {
+          setLive(data.liveRevenue ?? null);
+          setLastUpdated(Date.now());
+        }
       } catch {
         if (!cancelled) setLive(null);
+      } finally {
+        if (first && !cancelled) setLoadingLive(false);
+        first = false;
       }
     };
     poll();
@@ -194,12 +204,25 @@ export function AppShell() {
 
           {/* Right — live pill + actions + avatar */}
           <div className="flex items-center gap-2 shrink-0">
-            {live != null && (
-              <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full df-pill-live text-[12px] font-semibold">
-                <span className="w-2 h-2 rounded-full bg-[var(--df-live)] shadow-[0_0_0_3px_rgba(34,197,94,0.25)]" />
-                {isCustomers ? 'Today' : 'Live'}: ₹{fmtMoney(live)}
-              </div>
-            )}
+            <div
+              className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full ${
+                live != null ? 'df-pill-live text-[12px] font-semibold' : 'bg-slate-100 text-slate-500 text-[12px]'
+              }`}
+              title={
+                live != null
+                  ? `Last updated ${lastUpdated ? new Date(lastUpdated).toLocaleTimeString() : '—'}`
+                  : loadingLive
+                  ? 'Loading live data…'
+                  : 'Live feed unavailable'
+              }
+            >
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  live != null ? 'bg-[var(--df-live)] shadow-[0_0_0_3px_rgba(34,197,94,0.25)]' : 'bg-slate-300'
+                }`}
+              />
+              {isCustomers ? 'Today' : 'Live'}: {live != null ? `₹${fmtMoney(live)}` : loadingLive ? 'Loading…' : '—'}
+            </div>
             <button type="button" className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-500" aria-label="Notifications">
               <FiBell className="text-[17px]" />
             </button>
