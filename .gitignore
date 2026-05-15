@@ -42,3 +42,5 @@ Thumbs.db
 
 # Private docs
 INTERVIEW_DOC.md
+.vercel
+.env*.local

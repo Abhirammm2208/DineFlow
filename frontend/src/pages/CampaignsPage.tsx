@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/store.js';
 import api from '../services/api.js';
-import { FiPlus, FiSend, FiZap, FiEdit2, FiTrash2, FiX } from 'react-icons/fi';
+import { FiPlus, FiSend, FiZap, FiEdit2, FiX } from 'react-icons/fi';
 import { Alert, Input, Button } from '../components/index';
 
 const SEGMENTS = [
@@ -38,7 +38,6 @@ export function CampaignsPage() {
   const [segment, setSegment] = useState('all');
   const [creating, setCreating] = useState(false);
   const [broadcasting, setBroadcasting] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState<string | null>(null);
   const [editing, setEditing] = useState<any | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editDesc, setEditDesc] = useState('');
@@ -99,15 +98,12 @@ export function CampaignsPage() {
 
   const handleDelete = async (id: string) => {
     if (!window.confirm('Are you sure you want to delete this campaign? This cannot be undone.')) return;
-    setDeleting(id);
     try {
       await api.deleteCampaign(id);
       await reload();
       setNotification({ type: 'success', message: 'Campaign deleted successfully' });
     } catch (err: any) {
       setNotification({ type: 'error', message: err?.response?.data?.error || 'Failed to delete campaign' });
-    } finally {
-      setDeleting(null);
     }
   };
 
