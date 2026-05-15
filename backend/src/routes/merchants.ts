@@ -100,7 +100,6 @@ router.post('/login', async (req: Request, res: Response) => {
 router.get('/profile', authMiddleware, async (req: Request, res: Response) => {
   try {
     const merchantId = req.merchantId;
-
     // Try to select extended columns first
     let { data, error } = await supabase
       .from('merchants')
